@@ -1,6 +1,7 @@
 #!/bin/sh
 # Upserts every /workflows/*.json into n8n via the Public API (matched by workflow name).
 set -eu
+if [ -z "${N8N_API_KEY:-}" ]; then echo "Secret n8n-api-key not set - skipping workflow sync."; exit 0; fi
 apk add --no-cache curl jq >/dev/null
 
 H="X-N8N-API-KEY: ${N8N_API_KEY}"

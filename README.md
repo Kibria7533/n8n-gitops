@@ -25,12 +25,7 @@ kubectl create secret generic n8n-api-key -n n8n --from-literal=N8N_API_KEY=<key
 
 ## Bootstrap
 ```bash
-# 1. ArgoCD repo access (deploy key, read-only)
-ssh-keygen -t ed25519 -f ~/n8n-gitops-deploy -N ""      # add .pub to GitHub repo → Settings → Deploy keys
-kubectl create secret generic repo-n8n-gitops -n argocd \
-  --from-literal=type=git --from-literal=url=git@github.com:Kibria7533/n8n-gitops.git \
-  --from-file=sshPrivateKey=$HOME/n8n-gitops-deploy
-kubectl label secret repo-n8n-gitops -n argocd argocd.argoproj.io/secret-type=repository
+# 1. Repo is public, so ArgoCD reads it over HTTPS with no credentials.
 
 # 2. Register the app
 kubectl apply -f argocd/n8n-app.yaml
