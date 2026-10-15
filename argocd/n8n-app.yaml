@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: n8n                 # matches existing app.kubernetes.io/instance=n8n label → clean adoption
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:Kibria7533/n8n-gitops.git
+    targetRevision: main
+    path: deploy/n8n
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: n8n
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true   # avoids 256KB annotation limit on big workflow ConfigMaps

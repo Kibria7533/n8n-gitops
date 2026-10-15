@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: browser-automation-sidecar
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: browser-automation-sidecar}
+  template:
+    metadata:
+      labels: {app: browser-automation-sidecar}
+    spec:
+      containers:
+        - name: browser-automation-sidecar
+          image: docker.io/library/browser-automation-sidecar:v10
+          imagePullPolicy: Never
+          env:
+            - {name: ADMIN_URL, value: https://admin.questionhut.com}
+            - name: ADMIN_USERNAME
+              valueFrom: {secretKeyRef: {name: questionhut-admin-creds, key: username}}   # NOT in git
+            - name: ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: questionhut-admin-creds, key: password}}
+          ports:
+            - {containerPort: 5000, protocol: TCP}
+          resources:
+            requests: {cpu: 250m, memory: 1Gi}
+            limits: {cpu: "2", memory: 2Gi}
+          volumeMounts:
+            - {name: dshm, mountPath: /dev/shm}
+      volumes:
+        - name: dshm
+          emptyDir: {medium: Memory, sizeLimit: 1Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: browser-automation-sidecar
+spec:
+  selector: {app: browser-automation-sidecar}
+  ports:
+    - {port: 5000, targetPort: 5000, protocol: TCP}

@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: n8n-workflow-sync
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: sync
+          image: alpine:3.20
+          command: ["sh", "/scripts/sync-workflows.sh"]
+          env:
+            - {name: N8N_API_URL, value: "http://n8n.n8n.svc.cluster.local:5678/api/v1"}
+            - name: N8N_API_KEY
+              valueFrom: {secretKeyRef: {name: n8n-api-key, key: N8N_API_KEY}}   # NOT in git
+          volumeMounts:
+            - {name: scripts, mountPath: /scripts}
+            - {name: workflows, mountPath: /workflows}
+      volumes:
+        - name: scripts
+          configMap: {name: n8n-workflow-sync-script}
+        - name: workflows
+          configMap: {name: n8n-workflows}

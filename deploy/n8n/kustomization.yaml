@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: n8n
+
+resources:
+  - serviceaccount.yaml
+  - configmaps.yaml
+  - pvc.yaml
+  - n8n-deployment.yaml
+  - n8n-service.yaml
+  - browser-sidecar.yaml
+  - workflow-sync-job.yaml
+
+# Bump tags here to roll out a new locally-built image
+images:
+  - name: docker.io/library/n8n-ffmpeg
+    newTag: "2.32.7"
+  - name: docker.io/library/ffmpeg-sidecar
+    newTag: "1.3"
+  - name: docker.io/library/browser-automation-sidecar
+    newTag: v10
+
+configMapGenerator:
+  - name: n8n-workflow-sync-script
+    files:
+      - scripts/sync-workflows.sh
+  # Add every workflow file here (kustomize does not support globs)
+  - name: n8n-workflows
+    files:
+      - workflows/example-hello.json
