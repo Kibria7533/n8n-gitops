@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/Kibria7533/n8n-gitops.git
+    repoURL: git@github.com:Kibria7533/n8n-gitops.git
     targetRevision: main
     path: deploy/n8n
   destination:

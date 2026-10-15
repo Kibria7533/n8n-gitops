@@ -25,7 +25,7 @@ kubectl create secret generic n8n-api-key -n n8n --from-literal=N8N_API_KEY=<key
 
 ## Bootstrap
 ```bash
-# 1. Repo is public, so ArgoCD reads it over HTTPS with no credentials.
+# 1. Connect the repo in ArgoCD (Settings → Repositories, SSH URL).
 
 # 2. Register the app
 kubectl apply -f argocd/n8n-app.yaml
