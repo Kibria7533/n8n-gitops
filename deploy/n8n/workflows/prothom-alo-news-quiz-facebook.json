@@ -1,0 +1,216 @@
+{
+  "name": "Prothom Alo News Quiz - Facebook",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "feedUrl": "https://www.prothomalo.com/feed",
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 2,
+              "unit": "hours"
+            }
+          ]
+        }
+      },
+      "id": "rss-trigger",
+      "name": "New Prothom Alo Article",
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const DENY = ['sciencefiction','রস+আলো','কলাম','column','স্টাইল','style','সাক্ষাৎকার','interview','লুক','পাঠক-নাগরিক','ফিচার','feature'];\nreturn items.filter(i => {\n  const cats = (i.json.categories || []).map(c => String(c).trim().toLowerCase());\n  return !cats.some(c => DENY.some(d => c.includes(d.toLowerCase())));\n});"
+      },
+      "id": "filter-news",
+      "name": "Filter News Only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "maxItems": 1
+      },
+      "id": "limit-1",
+      "name": "Limit to 1",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const item = $input.item.json;\nconst html = item['content:encoded'] || item.content || '';\nlet text = html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g,' ').replace(/\\s+/g,' ').trim();\nif (text.length > 3000) text = text.slice(0, 3000);\nreturn { json: { title: item.title, link: item.link, articleText: text } };"
+      },
+      "id": "extract-text",
+      "name": "Extract Article Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: \"তুমি একটি বাংলা শিক্ষামূলক ফেসবুক পেজের জন্য কুইজ তৈরি করো। প্রদত্ত সংবাদ প্রতিবেদন পড়ে তা থেকে ৩ থেকে ৫টি মাল্টিপল চয়েস প্রশ্ন তৈরি করো। গুরুত্বপূর্ণ নিয়ম: শুধুমাত্র প্রতিবেদনে সরাসরি উল্লেখিত তথ্যের ভিত্তিতে প্রশ্ন তৈরি করবে। প্রতিবেদনে নেই এমন কোনো তথ্য, নাম, বা তারিখ অনুমান করে প্রশ্নে ব্যবহার কোরো না। যদি প্রতিবেদনে পর্যাপ্ত তথ্য না থাকে, তাহলে কম প্রশ্ন তৈরি করো কিন্তু ভুল/অনুমানভিত্তিক প্রশ্ন দিয়ো না। প্রতিটি প্রশ্নের ৪টি অপশন (ক, খ, গ, ঘ) দাও, ভুল অপশনগুলো probable কিন্তু স্পষ্টভাবে ভুল হতে হবে। সঠিক উত্তর উল্লেখ করো। পোস্টের শুরুতে একটি আকর্ষণীয় ইমোজি-সহ শিরোনাম দাও, শেষে ৩-৫টি প্রাসঙ্গিক হ্যাশট্যাগ দাও। ফেসবুক পোস্টের জন্য উপযুক্ত ফরম্যাটে সরাসরি টেক্সট আউটপুট দাও, কোনো markdown ব্যবহার কোরো না।\" },\n    { role: 'user', content: 'শিরোনাম: ' + $json.title + '\\n\\nসংবাদ: ' + $json.articleText }\n  ],\n  max_tokens: 1200,\n  temperature: 0.5\n}) }}",
+        "options": {}
+      },
+      "id": "openai-quiz",
+      "name": "Generate Quiz (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2MvJukYCMci14wnT",
+          "name": "OpenAI (alb potolo alt)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const quizText = $json.choices[0].message.content;\nconst link = $('Extract Article Text').first().json.link;\nconst fullPost = quizText + '\\n\\nসূত্র: ' + link;\nreturn { json: { message: fullPost } };"
+      },
+      "id": "format-post",
+      "name": "Format Post",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "feed",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "message",
+                "value": "={{$json.message}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "fb-quiz-post",
+      "name": "Post Quiz to Facebook",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "New Prothom Alo Article": {
+      "main": [
+        [
+          {
+            "node": "Filter News Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter News Only": {
+      "main": [
+        [
+          {
+            "node": "Limit to 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit to 1": {
+      "main": [
+        [
+          {
+            "node": "Extract Article Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Article Text": {
+      "main": [
+        [
+          {
+            "node": "Generate Quiz (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Quiz (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Format Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Post": {
+      "main": [
+        [
+          {
+            "node": "Post Quiz to Facebook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

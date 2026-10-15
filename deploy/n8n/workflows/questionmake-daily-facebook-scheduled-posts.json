@@ -1,0 +1,377 @@
+{
+  "name": "Questionmake - Daily Facebook Scheduled Posts",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 10,
+              "triggerAtMinute": 0
+            },
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 20,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "trigger-1",
+      "name": "Daily at 10:00 and 20:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT sp.id AS sp_id, mu.id AS mu_id, mu.original_file_url,\n  COALESCE(mu.ai_facebook_title, mu.edited_title, mu.ai_content_summary) AS title,\n  COALESCE(\n    NULLIF(TRIM(mu.ai_facebook_description), ''),\n    NULLIF(TRIM(mu.edited_description), ''),\n    NULLIF(TRIM(mu.ai_raw_content), ''),\n    ''\n  ) AS description,\n  mu.ai_facebook_hashtags AS hashtags\nFROM scheduled_posts sp\nJOIN media_uploads mu ON mu.id = sp.media_upload_id\nWHERE sp.status = 'pending'\n  AND mu.platform IN ('facebook','both')\n  AND mu.status = 'processed'\nORDER BY sp.scheduled_date ASC, sp.position ASC\nLIMIT 1",
+        "options": {}
+      },
+      "id": "mysql-select-1",
+      "name": "Get Due Posts",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "QxQz8ESa93bbcEkj",
+          "name": "Questionmake MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const item = $input.item.json;\nlet hashtags = item.hashtags;\nif (typeof hashtags === 'string') {\n  try { hashtags = JSON.parse(hashtags); } catch (e) { hashtags = []; }\n}\nif (!Array.isArray(hashtags)) hashtags = [];\nconst hashtagStr = hashtags.map(h => (h.startsWith('#') ? h : '#' + h)).join(' ');\nconst hasContent = !!(item.description && item.description.trim().length > 0);\nconst caption = [item.title, item.description, hashtagStr].filter(Boolean).join('\\n\\n');\nreturn { json: { ...item, caption, hasContent } };"
+      },
+      "id": "code-caption-1",
+      "name": "Build Caption",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "feed",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "message",
+                "value": "={{$json.caption}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "facebook-post-2",
+      "name": "Post to Facebook",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scheduled_posts SET status = 'published' WHERE id = {{$('Build Caption').first().json.sp_id}}",
+        "options": {}
+      },
+      "id": "mysql-update-1",
+      "name": "Mark Scheduled Post Published",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "QxQz8ESa93bbcEkj",
+          "name": "Questionmake MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_uploads SET status = 'published', published_at = NOW(), published_url = 'https://www.facebook.com/{{$('Post to Facebook').first().json.id}}' WHERE id = {{$('Build Caption').first().json.mu_id}}",
+        "options": {}
+      },
+      "id": "mysql-update-2",
+      "name": "Mark Media Published",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        1340,
+        300
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "QxQz8ESa93bbcEkj",
+          "name": "Questionmake MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{$json.hasContent}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-content",
+      "name": "Has Content?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$('Build Caption').first().json.original_file_url}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "download-img",
+      "name": "Download Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        460
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "photos",
+        "sendBinaryData": true,
+        "binaryPropertyName": "data",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "caption",
+                "value": "={{$('Build Caption').first().json.title}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "fb-image",
+      "name": "Post to Facebook (Image)",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        460
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scheduled_posts SET status = 'published' WHERE id = {{$('Build Caption').first().json.sp_id}}",
+        "options": {}
+      },
+      "id": "mark-sp-image",
+      "name": "Mark Scheduled Post Published (Image)",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        1560,
+        400
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "QxQz8ESa93bbcEkj",
+          "name": "Questionmake MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_uploads SET status = 'published', published_at = NOW(), published_url = 'https://www.facebook.com/{{$('Post to Facebook (Image)').first().json.post_id}}' WHERE id = {{$('Build Caption').first().json.mu_id}}",
+        "options": {}
+      },
+      "id": "mark-mu-image",
+      "name": "Mark Media Published (Image)",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        1560,
+        520
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "QxQz8ESa93bbcEkj",
+          "name": "Questionmake MySQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily at 10:00 and 20:00": {
+      "main": [
+        [
+          {
+            "node": "Get Due Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Due Posts": {
+      "main": [
+        [
+          {
+            "node": "Build Caption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Caption": {
+      "main": [
+        [
+          {
+            "node": "Has Content?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to Facebook": {
+      "main": [
+        [
+          {
+            "node": "Mark Scheduled Post Published",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Mark Media Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Content?": {
+      "main": [
+        [
+          {
+            "node": "Post to Facebook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Download Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Image": {
+      "main": [
+        [
+          {
+            "node": "Post to Facebook (Image)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to Facebook (Image)": {
+      "main": [
+        [
+          {
+            "node": "Mark Scheduled Post Published (Image)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Mark Media Published (Image)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

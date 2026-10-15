@@ -1,0 +1,153 @@
+{
+  "name": "Exam Reminder",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "trigger-daily-reminder-1",
+      "name": "Daily 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, exam_name, examCode, scheduled_start_time, total_question, duration, pass_mark\nFROM online_exam\nWHERE exam_mode = 'LIVE_QUIZ'\n  AND scheduled_start_time BETWEEN NOW() + INTERVAL 20 HOUR AND NOW() + INTERVAL 28 HOUR",
+        "options": {}
+      },
+      "id": "mysql-find-soon-1",
+      "name": "Find Exams Starting Soon",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "QxQz8ESa93bbcEkj",
+          "name": "Questionmake MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-has-code",
+              "leftValue": "={{$json.examCode}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-upcoming-1",
+      "name": "Has Upcoming Exam?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "feed",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "message",
+                "value": "=⏰ Reminder: {{$json.exam_name}} starts in less than 24 hours!\n\n🗓️ {{$json.scheduled_start_time}} (UTC)\n📝 {{$json.total_question}} questions | ⏱️ {{$json.duration}} min | ✅ Pass mark: {{$json.pass_mark}}\n\nJoin now: https://app.questionhut.com/join-exam/{{$json.examCode}}\nExam code: {{$json.examCode}}\n\nGet ready! 🔥"
+              }
+            ]
+          }
+        }
+      },
+      "id": "fb-reminder-1",
+      "name": "Post Exam Reminder",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 09:00": {
+      "main": [
+        [
+          {
+            "node": "Find Exams Starting Soon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Exams Starting Soon": {
+      "main": [
+        [
+          {
+            "node": "Has Upcoming Exam?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Upcoming Exam?": {
+      "main": [
+        [
+          {
+            "node": "Post Exam Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {}
+}

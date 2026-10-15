@@ -1,0 +1,328 @@
+{
+  "name": "Facebook AI Cards (MCQ/Info/PPT) - Feed + Story",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 8
+            },
+            {
+              "field": "days",
+              "triggerAtHour": 11
+            },
+            {
+              "field": "days",
+              "triggerAtHour": 14
+            },
+            {
+              "field": "days",
+              "triggerAtHour": 17
+            },
+            {
+              "field": "days",
+              "triggerAtHour": 20
+            },
+            {
+              "field": "days",
+              "triggerAtHour": 23
+            }
+          ]
+        }
+      },
+      "id": "trig",
+      "name": "Daytime Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const TYPES = ['mcq', 'info', 'ppt'];\nconst staticData = $getWorkflowStaticData('global');\nif (typeof staticData.typeIndex !== 'number') staticData.typeIndex = 0;\nconst cardType = TYPES[staticData.typeIndex % TYPES.length];\nstaticData.typeIndex = (staticData.typeIndex + 1) % TYPES.length;\n\nif (!Array.isArray(staticData.usedTopics)) staticData.usedTopics = [];\nconst recentTopics = staticData.usedTopics.slice(-15).join(', ') || 'কিছুই না';\n\nlet systemPrompt, userPrompt;\n\nif (cardType === 'mcq') {\n  systemPrompt = `তুমি Questionhut নামক একটি বাংলাদেশি ফেসবুক পেজের জন্য BCS মানের কুইজ প্রশ্ন তৈরি করো। একটি সিঙ্গেল MCQ প্রশ্ন বাংলায় লিখবে, ৪টি অপশন সহ (অপশনের টেক্সটে ক/খ/গ/ঘ লেবেল যোগ করবে না, শুধু answer)। প্রশ্ন তথ্যভিত্তিক, সঠিক ও প্রমিত বাংলা ভাষায় স্পষ্টভাবে লেখা হতে হবে। নিচের বিষয়গুলো সম্প্রতি ব্যবহার করা হয়েছে, এগুলো এড়িয়ে নতুন কিছু বাছাই করো: ${recentTopics}। শুধুমাত্র বৈধ JSON আকারে উত্তর দাও, অন্য কোনো টেক্সট ছাড়া, এই কাঠামোতে: {\"question\":\"...\",\"options\":[\"...\",\"...\",\"...\",\"...\"],\"correctIndex\":0,\"topic\":\"সংক্ষিপ্ত বিষয় ট্যাগ (ইংরেজি)\"}`;\n  userPrompt = 'একটি নতুন BCS সাধারণ জ্ঞান MCQ প্রশ্ন তৈরি করো।';\n} else if (cardType === 'info') {\n  systemPrompt = `তুমি Questionhut ফেসবুক পেজের জন্য ছোট, চমকপ্রদ তথ্য (fun fact) লেখো — বাংলাদেশ, বিজ্ঞান, ইতিহাস বা সাধারণ জ্ঞান বিষয়ে। ১-২ বাক্যে সংক্ষিপ্ত ও আকর্ষণীয় তথ্য লিখবে প্রমিত বাংলায়। নিচের বিষয়গুলো সম্প্রতি ব্যবহৃত হয়েছে, এড়িয়ে চলো: ${recentTopics}। শুধুমাত্র বৈধ JSON আকারে উত্তর দাও: {\"title\":\"জানা আছে কি?\",\"content\":\"...\",\"topic\":\"সংক্ষিপ্ত বিষয় ট্যাগ (ইংরেজি)\"}`;\n  userPrompt = 'একটি নতুন চমকপ্রদ তথ্য তৈরি করো।';\n} else {\n  systemPrompt = `তুমি Questionhut ফেসবুক পেজের জন্য একটি মিনি এডুকেশনাল স্লাইড তৈরি করো — বাংলাদেশের ইতিহাস, বিজ্ঞান, ভূগোল বা সাধারণ জ্ঞান বিষয়ে। একটি শিরোনাম, একটি উপ-শিরোনাম, এবং ৩-৪টি সংক্ষিপ্ত তথ্যভিত্তিক bullet point লিখবে প্রমিত বাংলায় (প্রতিটি এক লাইনে)। নিচের বিষয়গুলো সম্প্রতি ব্যবহৃত হয়েছে, এড়িয়ে চলো: ${recentTopics}। শুধুমাত্র বৈধ JSON আকারে উত্তর দাও: {\"title\":\"...\",\"subtitle\":\"...\",\"bullets\":[\"...\",\"...\",\"...\"],\"source\":\"সূত্র: ...\",\"topic\":\"সংক্ষিপ্ত বিষয় ট্যাগ (ইংরেজি)\"}`;\n  userPrompt = 'একটি নতুন তথ্যমূলক মিনি স্লাইড তৈরি করো।';\n}\n\nreturn { json: { cardType, systemPrompt, userPrompt } };"
+      },
+      "id": "pick",
+      "name": "Pick Card Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', messages: [ { role: 'system', content: $json.systemPrompt }, { role: 'user', content: $json.userPrompt } ], temperature: 0.9, response_format: { type: 'json_object' } }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "gen",
+      "name": "Generate Content (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2MvJukYCMci14wnT",
+          "name": "OpenAI (alb potolo alt)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cardType = $('Pick Card Type').first().json.cardType;\nconst content = JSON.parse($json.choices[0].message.content);\n\nconst staticData = $getWorkflowStaticData('global');\nif (!Array.isArray(staticData.usedTopics)) staticData.usedTopics = [];\nif (content.topic) {\n  staticData.usedTopics.push(content.topic);\n  if (staticData.usedTopics.length > 30) staticData.usedTopics.shift();\n}\n\nlet sidecarPayload, caption;\n\nif (cardType === 'mcq') {\n  sidecarPayload = {\n    cardType: 'mcq',\n    question: content.question,\n    options: content.options,\n    footer: 'সঠিক উত্তর কমেন্টে লিখুন',\n  };\n  caption = `🧠 আজকের কুইজ!\\n\\n${content.question}\\n\\nসঠিক উত্তর কমেন্টে জানান! ✅\\n\\n#Questionhut #BCS #Quiz #GK`;\n} else if (cardType === 'info') {\n  sidecarPayload = {\n    cardType: 'info',\n    title: content.title || 'জানা আছে কি?',\n    content: content.content,\n    footer: 'প্রতিদিন নতুন তথ্য পেতে ফলো করুন',\n  };\n  caption = `💡 ${content.title || 'জানা আছে কি?'}\\n\\n${content.content}\\n\\n#Questionhut #GK`;\n} else {\n  sidecarPayload = {\n    cardType: 'ppt',\n    title: content.title,\n    subtitle: content.subtitle,\n    bullets: content.bullets,\n    source: content.source || '',\n  };\n  caption = `📚 ${content.title}\\n${content.subtitle || ''}\\n\\n#Questionhut #GK #Education`;\n}\n\nreturn { json: { sidecarPayload, caption } };"
+      },
+      "id": "parse",
+      "name": "Parse & Build Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://browser-automation-sidecar.n8n.svc.cluster.local:5000/generate-card",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.sidecarPayload) }}",
+        "options": {
+          "timeout": 90000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "card",
+      "name": "Generate Card (Sidecar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "photos",
+        "sendBinaryData": true,
+        "binaryPropertyName": "data",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "caption",
+                "value": "={{$('Parse & Build Payload').first().json.caption}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "post",
+      "name": "Post to Facebook",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "photos",
+        "sendBinaryData": true,
+        "binaryPropertyName": "data",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "published",
+                "value": "false"
+              }
+            ]
+          }
+        }
+      },
+      "id": "storyup",
+      "name": "Upload Story Photo",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        480
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "photo_stories",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "photo_id",
+                "value": "={{$json.id}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "storypub",
+      "name": "Publish Story",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        480
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Pick Card Type": {
+      "main": [
+        [
+          {
+            "node": "Generate Content (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Content (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse & Build Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Build Payload": {
+      "main": [
+        [
+          {
+            "node": "Generate Card (Sidecar)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Card (Sidecar)": {
+      "main": [
+        [
+          {
+            "node": "Post to Facebook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Upload Story Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daytime Schedule": {
+      "main": [
+        [
+          {
+            "node": "Pick Card Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Story Photo": {
+      "main": [
+        [
+          {
+            "node": "Publish Story",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to Facebook": {
+      "main": [
+        []
+      ]
+    },
+    "Publish Story": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

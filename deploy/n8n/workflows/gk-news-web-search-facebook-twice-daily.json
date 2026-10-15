@@ -1,0 +1,175 @@
+{
+  "name": "GK News (Web Search) - Facebook Twice Daily",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 11,
+              "triggerAtMinute": 0
+            },
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 19,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "trig",
+      "name": "Twice Daily (11am, 7pm)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nif (!Array.isArray(staticData.recentTopics)) staticData.recentTopics = [];\nconst avoidList = staticData.recentTopics.slice(-5).join(' | ');\nreturn { json: { avoidList } };"
+      },
+      "id": "get-recent",
+      "name": "Get Recent Topics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/responses",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'gpt-4o',\n  tools: [{ type: 'web_search' }],\n  input: \"Search the web for one notable, recent (within the last few days) international or national news story that is commonly relevant to general knowledge sections of competitive exams in Bangladesh (like BCS) — e.g. international relations, global organizations, science/tech breakthroughs, economy, notable appointments/awards, treaties, summits. You MUST base the post strictly on what your web search actually returns — do not add any claim, quote, or detail that isn't directly supported by the search results. Then write a Bengali Facebook post (150-250 words) explaining the news in your own words and why it matters for GK preparation, with an engaging emoji headline and 3-5 relevant hashtags at the end. IMPORTANT OUTPUT RULES: Respond with ONLY the final Facebook post text itself — no preamble, no 'I searched and found', no 'here is a draft', no explanations, no separators, no citation markdown links in the body. Start your response directly with the emoji headline and end with the hashtags. Plain text only.\" + ($json.avoidList ? ('\\n\\nAvoid repeating these recently covered topics: ' + $json.avoidList) : '')\n}) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "openai-search",
+      "name": "Web Search & Generate (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2MvJukYCMci14wnT",
+          "name": "OpenAI (alb potolo alt)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const output = $json.output || [];\nconst msg = output.find(o => o.type === 'message');\nlet text = '';\nlet citations = [];\nif (msg) {\n  for (const c of msg.content) {\n    if (c.type === 'output_text') {\n      text = c.text;\n      citations = (c.annotations || []).filter(a => a.type === 'url_citation').map(a => a.url);\n    }\n  }\n}\ncitations = [...new Set(citations)];\n// strip any inline markdown-style links the model added despite instructions\ntext = text.replace(/\\(\\[[^\\]]*\\]\\([^)]*\\)\\)/g, '').replace(/\\[[^\\]]*\\]\\(([^)]*)\\)/g, '$1');\ntext = text.replace(/[ \\t]+\\n/g, '\\n').replace(/\\n{3,}/g, '\\n\\n').trim();\nlet fullMessage = text;\nif (citations.length) {\n  fullMessage += '\\n\\nসূত্র: ' + citations[0];\n}\nconst staticData = $getWorkflowStaticData('global');\nif (!Array.isArray(staticData.recentTopics)) staticData.recentTopics = [];\nconst headlineLine = text.split('\\n')[0];\nstaticData.recentTopics.push(headlineLine);\nif (staticData.recentTopics.length > 10) staticData.recentTopics = staticData.recentTopics.slice(-10);\nreturn { json: { message: fullMessage, hasCitation: citations.length > 0 } };"
+      },
+      "id": "extract-post",
+      "name": "Extract Post + Citation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "feed",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "message",
+                "value": "={{$json.message}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "fb-gk-post",
+      "name": "Post GK News to Facebook",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Twice Daily (11am, 7pm)": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Topics": {
+      "main": [
+        [
+          {
+            "node": "Web Search & Generate (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Search & Generate (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Extract Post + Citation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Post + Citation": {
+      "main": [
+        [
+          {
+            "node": "Post GK News to Facebook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

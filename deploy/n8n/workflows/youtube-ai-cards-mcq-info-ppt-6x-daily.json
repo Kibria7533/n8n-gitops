@@ -1,0 +1,279 @@
+{
+  "name": "YouTube AI Cards (MCQ/Info/PPT) - 6x Daily",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 9
+            },
+            {
+              "field": "days",
+              "triggerAtHour": 12
+            },
+            {
+              "field": "days",
+              "triggerAtHour": 15
+            },
+            {
+              "field": "days",
+              "triggerAtHour": 18
+            },
+            {
+              "field": "days",
+              "triggerAtHour": 21
+            },
+            {
+              "field": "days",
+              "triggerAtHour": 23
+            }
+          ]
+        }
+      },
+      "id": "trig",
+      "name": "Daytime Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const TYPES = ['mcq', 'info', 'ppt'];\nconst staticData = $getWorkflowStaticData('global');\nif (typeof staticData.typeIndex !== 'number') staticData.typeIndex = 0;\nconst cardType = TYPES[staticData.typeIndex % TYPES.length];\nstaticData.typeIndex = (staticData.typeIndex + 1) % TYPES.length;\n\nif (!Array.isArray(staticData.usedTopics)) staticData.usedTopics = [];\nconst recentTopics = staticData.usedTopics.slice(-15).join(', ') || 'কিছুই না';\n\nlet systemPrompt, userPrompt;\n\nif (cardType === 'mcq') {\n  systemPrompt = `তুমি Questionhut নামক একটি বাংলাদেশি শিক্ষামূলক ইউটিউব চ্যানেলের জন্য BCS মানের কুইজ প্রশ্ন তৈরি করো। একটি সিঙ্গেল MCQ প্রশ্ন বাংলায় লিখবে, ৪টি অপশন সহ (অপশনের টেক্সটে ক/খ/গ/ঘ লেবেল যোগ করবে না, শুধু answer)। প্রশ্ন তথ্যভিত্তিক, সঠিক ও প্রমিত বাংলা ভাষায় স্পষ্টভাবে লেখা হতে হবে। নিচের বিষয়গুলো সম্প্রতি ব্যবহার করা হয়েছে, এগুলো এড়িয়ে নতুন কিছু বাছাই করো: ${recentTopics}। শুধুমাত্র বৈধ JSON আকারে উত্তর দাও, অন্য কোনো টেক্সট ছাড়া, এই কাঠামোতে: {\"question\":\"...\",\"options\":[\"...\",\"...\",\"...\",\"...\"],\"correctIndex\":0,\"topic\":\"সংক্ষিপ্ত বিষয় ট্যাগ (ইংরেজি)\"}`;\n  userPrompt = 'একটি নতুন BCS সাধারণ জ্ঞান MCQ প্রশ্ন তৈরি করো।';\n} else if (cardType === 'info') {\n  systemPrompt = `তুমি Questionhut ইউটিউব চ্যানেলের জন্য ছোট, চমকপ্রদ তথ্য (fun fact) লেখো — বাংলাদেশ, বিজ্ঞান, ইতিহাস বা সাধারণ জ্ঞান বিষয়ে। ১-২ বাক্যে সংক্ষিপ্ত ও আকর্ষণীয় তথ্য লিখবে প্রমিত বাংলায়। নিচের বিষয়গুলো সম্প্রতি ব্যবহৃত হয়েছে, এড়িয়ে চলো: ${recentTopics}। শুধুমাত্র বৈধ JSON আকারে উত্তর দাও: {\"title\":\"জানা আছে কি?\",\"content\":\"...\",\"topic\":\"সংক্ষিপ্ত বিষয় ট্যাগ (ইংরেজি)\"}`;\n  userPrompt = 'একটি নতুন চমকপ্রদ তথ্য তৈরি করো।';\n} else {\n  systemPrompt = `তুমি Questionhut ইউটিউব চ্যানেলের জন্য একটি মিনি এডুকেশনাল স্লাইড তৈরি করো — বাংলাদেশের ইতিহাস, বিজ্ঞান, ভূগোল বা সাধারণ জ্ঞান বিষয়ে। একটি শিরোনাম, একটি উপ-শিরোনাম, এবং ৩-৪টি সংক্ষিপ্ত তথ্যভিত্তিক bullet point লিখবে প্রমিত বাংলায় (প্রতিটি এক লাইনে)। নিচের বিষয়গুলো সম্প্রতি ব্যবহৃত হয়েছে, এড়িয়ে চলো: ${recentTopics}। শুধুমাত্র বৈধ JSON আকারে উত্তর দাও: {\"title\":\"...\",\"subtitle\":\"...\",\"bullets\":[\"...\",\"...\",\"...\"],\"source\":\"সূত্র: ...\",\"topic\":\"সংক্ষিপ্ত বিষয় ট্যাগ (ইংরেজি)\"}`;\n  userPrompt = 'একটি নতুন তথ্যমূলক মিনি স্লাইড তৈরি করো।';\n}\n\nreturn { json: { cardType, systemPrompt, userPrompt } };"
+      },
+      "id": "pick",
+      "name": "Pick Card Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', messages: [ { role: 'system', content: $json.systemPrompt }, { role: 'user', content: $json.userPrompt } ], temperature: 0.9, response_format: { type: 'json_object' } }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "gen",
+      "name": "Generate Content (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2MvJukYCMci14wnT",
+          "name": "OpenAI (alb potolo alt)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cardType = $('Pick Card Type').first().json.cardType;\nconst content = JSON.parse($json.choices[0].message.content);\n\nconst staticData = $getWorkflowStaticData('global');\nif (!Array.isArray(staticData.usedTopics)) staticData.usedTopics = [];\nif (content.topic) {\n  staticData.usedTopics.push(content.topic);\n  if (staticData.usedTopics.length > 30) staticData.usedTopics.shift();\n}\n\nconst clip = (s, n) => (s || '').length > n ? (s || '').slice(0, n - 1) + '…' : (s || '');\nlet sidecarPayload, ytTitle, ytDescription;\nconst optLabels = ['ক', 'খ', 'গ', 'ঘ'];\n\nif (cardType === 'mcq') {\n  sidecarPayload = { cardType: 'mcq', question: content.question, options: content.options, footer: 'সঠিক উত্তর কমেন্টে লিখুন' };\n  ytTitle = clip(`🧠 BCS কুইজ: ${content.question}`, 90) + ' #Shorts';\n  const opts = (content.options || []).map((o, i) => `${optLabels[i]}) ${o}`).join('\\n');\n  ytDescription = `${content.question}\\n\\n${opts}\\n\\nসঠিক উত্তর কমেন্টে জানান! ✅\\n\\nপ্রতিদিন নতুন কুইজ পেতে সাবস্ক্রাইব করুন।\\n\\n#Questionhut #BCS #Quiz #GK #Shorts`;\n} else if (cardType === 'info') {\n  sidecarPayload = { cardType: 'info', title: content.title || 'জানা আছে কি?', content: content.content, footer: 'প্রতিদিন নতুন তথ্য পেতে সাবস্ক্রাইব করুন' };\n  ytTitle = clip(`💡 ${content.content}`, 90) + ' #Shorts';\n  ytDescription = `${content.title || 'জানা আছে কি?'}\\n\\n${content.content}\\n\\nপ্রতিদিন নতুন তথ্য পেতে সাবস্ক্রাইব করুন।\\n\\n#Questionhut #GK #Facts #Shorts`;\n} else {\n  sidecarPayload = { cardType: 'ppt', title: content.title, subtitle: content.subtitle, bullets: content.bullets, source: content.source || '' };\n  ytTitle = clip(`📚 ${content.title}`, 90) + ' #Shorts';\n  ytDescription = `${content.title}\\n${content.subtitle || ''}\\n\\n${(content.bullets || []).map(b => '• ' + b).join('\\n')}\\n\\nপ্রতিদিন শিখতে সাবস্ক্রাইব করুন।\\n\\n#Questionhut #GK #Education #Shorts`;\n}\n\nreturn { json: { sidecarPayload, ytTitle, ytDescription } };"
+      },
+      "id": "parse",
+      "name": "Parse & Build Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://browser-automation-sidecar.n8n.svc.cluster.local:5000/generate-card",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.sidecarPayload) }}",
+        "options": {
+          "timeout": 90000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "card",
+      "name": "Generate Card (Sidecar)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://browser-automation-sidecar.n8n.svc.cluster.local:5000/make-video",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "duration",
+              "value": "9"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "timeout": 180000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data",
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "vid",
+      "name": "Make Video (ffmpeg)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $('Parse & Build Payload').first().json.ytTitle }}",
+        "regionCode": "US",
+        "categoryId": "27",
+        "options": {
+          "description": "={{ $('Parse & Build Payload').first().json.ytDescription }}{{ $('Make Video (ffmpeg)').first().json.headers?.['x-music-credit'] ? '\\n\\n\\u2500\\u2500\\u2500\\n' + $('Make Video (ffmpeg)').first().json.headers['x-music-credit'] : '' }}",
+          "privacyStatus": "public",
+          "tags": "Questionhut,BCS,Quiz,GK,Bangla"
+        }
+      },
+      "id": "yt",
+      "name": "Upload to YouTube",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        300
+      ],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "KaBt5J0qY65lp4tN",
+          "name": "YouTube Questionhatpro"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daytime Schedule": {
+      "main": [
+        [
+          {
+            "node": "Pick Card Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Card Type": {
+      "main": [
+        [
+          {
+            "node": "Generate Content (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Content (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse & Build Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Build Payload": {
+      "main": [
+        [
+          {
+            "node": "Generate Card (Sidecar)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Card (Sidecar)": {
+      "main": [
+        [
+          {
+            "node": "Make Video (ffmpeg)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make Video (ffmpeg)": {
+      "main": [
+        [
+          {
+            "node": "Upload to YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to YouTube": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

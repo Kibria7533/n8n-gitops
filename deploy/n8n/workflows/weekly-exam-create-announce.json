@@ -1,0 +1,199 @@
+{
+  "name": "Weekly Exam Create + Announce",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [
+                0
+              ],
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "trigger-weekly-1",
+      "name": "Weekly Sunday 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM question_sets ORDER BY RAND() LIMIT 1",
+        "options": {}
+      },
+      "id": "mysql-pick-qs-1",
+      "name": "Pick Random Question Set",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "QxQz8ESa93bbcEkj",
+          "name": "Questionmake MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT COUNT(*) AS total_question FROM question_set_questions WHERE question_set_id = {{$json.id}}",
+        "options": {}
+      },
+      "id": "mysql-count-q-1",
+      "name": "Count Questions In Set",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "QxQz8ESa93bbcEkj",
+          "name": "Questionmake MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const qs = $('Pick Random Question Set').first().json;\nconst cnt = $('Count Questions In Set').first().json;\nconst totalQuestion = parseInt(cnt.total_question) || 0;\n\nfunction esc(v) {\n  if (v === null || v === undefined) return 'NULL';\n  return \"'\" + String(v).replace(/'/g, \"''\") + \"'\";\n}\n\nfunction randomCode(len) {\n  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';\n  let s = '';\n  for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];\n  return s;\n}\n\nconst examCode = randomCode(8);\nconst timePerQuestion = 30; // seconds per question (default)\nconst durationMinutes = Math.max(1, Math.ceil((timePerQuestion * totalQuestion) / 60));\nconst passMark = Math.max(1, Math.ceil(totalQuestion * 0.4)); // 40% default pass mark\n\nconst now = new Date();\nconst scheduledStart = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000); // +5 days lead time for marketing\nscheduledStart.setUTCHours(9, 0, 0, 0); // 09:00 UTC kickoff\n\nfunction toMysqlDatetime(d) {\n  return d.toISOString().slice(0, 19).replace('T', ' ');\n}\n\nconst examName = qs.exam_name || qs.name || 'Weekly Quiz';\nconst examNameBn = qs.exam_name_bn || qs.name_bn || null;\nconst scheduledStartStr = toMysqlDatetime(scheduledStart);\nconst joinUrl = `https://app.questionhut.com/join-exam/${examCode}`;\n\nconst insertSql = `INSERT INTO online_exam\n(exam_name, exam_name_bn, examType, status, date, duration, questionSetId, total_question, pass_mark, user_id, examCode, exam_mode, time_per_question, scheduled_start_time, completed)\nVALUES\n(${esc(examName)}, ${esc(examNameBn)}, 'public', 1, ${esc(scheduledStartStr)}, ${durationMinutes}, ${qs.id}, ${totalQuestion}, ${passMark}, 1, ${esc(examCode)}, 'LIVE_QUIZ', ${timePerQuestion}, ${esc(scheduledStartStr)}, 0)`;\n\nreturn {\n  json: {\n    exam_name: examName,\n    exam_code: examCode,\n    duration: durationMinutes,\n    pass_mark: passMark,\n    total_question: totalQuestion,\n    scheduled_start_time: scheduledStartStr,\n    join_url: joinUrl,\n    insert_sql: insertSql\n  }\n};"
+      },
+      "id": "code-build-exam-1",
+      "name": "Build Exam Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{$json.insert_sql}}",
+        "options": {}
+      },
+      "id": "mysql-insert-exam-1",
+      "name": "Insert Exam",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "QxQz8ESa93bbcEkj",
+          "name": "Questionmake MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "feed",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "message",
+                "value": "=📢 New Weekly Quiz Alert!\n\n🎯 {{$('Build Exam Fields').first().json.exam_name}}\n🗓️ Live on: {{$('Build Exam Fields').first().json.scheduled_start_time}} (UTC)\n📝 {{$('Build Exam Fields').first().json.total_question}} questions | ⏱️ {{$('Build Exam Fields').first().json.duration}} min\n✅ Pass mark: {{$('Build Exam Fields').first().json.pass_mark}}\n\nJoin here: {{$('Build Exam Fields').first().json.join_url}}\nOr use exam code: {{$('Build Exam Fields').first().json.exam_code}}\n\nSee you there! 🏆"
+              }
+            ]
+          }
+        }
+      },
+      "id": "fb-announce-1",
+      "name": "Post Exam Announcement",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Weekly Sunday 09:00": {
+      "main": [
+        [
+          {
+            "node": "Pick Random Question Set",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Random Question Set": {
+      "main": [
+        [
+          {
+            "node": "Count Questions In Set",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Count Questions In Set": {
+      "main": [
+        [
+          {
+            "node": "Build Exam Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Exam Fields": {
+      "main": [
+        [
+          {
+            "node": "Insert Exam",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Exam": {
+      "main": [
+        [
+          {
+            "node": "Post Exam Announcement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

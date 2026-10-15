@@ -1,0 +1,300 @@
+{
+  "name": "Job Circular Posts (bdgovtjob RSS) - 2x Daily",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 10
+            },
+            {
+              "field": "days",
+              "triggerAtHour": 18
+            }
+          ]
+        }
+      },
+      "id": "trig",
+      "name": "Job Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://bdgovtjob.net/feed/",
+        "options": {}
+      },
+      "id": "rss",
+      "name": "Fetch RSS",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst staticData = $getWorkflowStaticData('global');\nif (!Array.isArray(staticData.postedJobLinks)) staticData.postedJobLinks = [];\nconst posted = new Set(staticData.postedJobLinks);\nconst fresh = $input.all().map(i => i.json).filter(j => j.link && !posted.has(j.link));\nif (!fresh.length) return [];\nconst item = fresh[0]; // feed is newest-first\nreturn [{ json: { title: item.title || '', link: item.link, pubDate: item.pubDate || item.isoDate || '' } }];\n"
+      },
+      "id": "pick",
+      "name": "Pick New Circular",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.link }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/129.0 Safari/537.36"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "fetch",
+      "name": "Fetch Article",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        840,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst raw = $json.data || '';\nlet text = raw\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&amp;/g, '&')\n  .replace(/\\s+/g, ' ')\n  .trim()\n  .slice(0, 8000);\nconst picked = $('Pick New Circular').first().json;\nconst systemPrompt = `তুমি Questionhut নামের একটি বাংলাদেশি ফেসবুক পেজের সোশ্যাল মিডিয়া ম্যানেজার। পেজের অডিয়েন্স চাকরিপ্রার্থী। নিচে একটি চাকরির বিজ্ঞপ্তির (job circular) ওয়েবপেজ থেকে নেওয়া টেক্সট দেওয়া হবে। সেটির ভিত্তিতে একটি আকর্ষণীয় ফেসবুক পোস্ট বাংলায় লেখো। নিয়ম: (১) শুধুমাত্র দেওয়া টেক্সটে থাকা তথ্য ব্যবহার করবে, নিজে থেকে কোনো তথ্য (তারিখ, পদসংখ্যা, বেতন) বানাবে না; কোনো তথ্য না থাকলে সেটি বাদ দেবে। (২) থাকলে উল্লেখ করবে: প্রতিষ্ঠানের নাম, পদের নাম ও সংখ্যা, শিক্ষাগত যোগ্যতা, আবেদনের শেষ তারিখ, আবেদনের মাধ্যম। (৩) শুরুতে একটি চোখে পড়ার মতো লাইন ও প্রাসঙ্গিক ইমোজি ব্যবহার করবে, বুলেট আকারে গুছিয়ে লিখবে। (৪) শেষে ৩-৪টি হ্যাশট্যাগ দেবে যেমন #চাকরির_খবর #JobCircular #Questionhut। (৫) মার্কডাউন ফরম্যাটিং (** বা #) ব্যবহার করবে না, ফেসবুকে এগুলো কাজ করে না; ইমোজি ও সাধারণ টেক্সট ব্যবহার করবে। (৬) যদি বিজ্ঞপ্তিতে অনেকগুলো পদ/তারিখ/সংখ্যা থাকে, সেগুলো একসাথে জোড়া না দিয়ে সংক্ষেপে লিখবে (যেমন: \"বিভিন্ন জেলায় একাধিক পদ\", \"জেলাভেদে ভিন্ন, বিস্তারিত লিংকে\")। (৭) লিংক লিখবে না, সেটা আলাদাভাবে যোগ হবে। শুধুমাত্র বৈধ JSON দেবে: {\"message\":\"...\"}`;\nconst userPrompt = `বিজ্ঞপ্তির শিরোনাম: ${picked.title}\\n\\nওয়েবপেজের টেক্সট:\\n${text}`;\nreturn [{ json: { systemPrompt, userPrompt } }];\n"
+      },
+      "id": "prompt",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', messages: [ { role: 'system', content: $json.systemPrompt }, { role: 'user', content: $json.userPrompt } ], temperature: 0.7, response_format: { type: 'json_object' } }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "ai",
+      "name": "Generate Post (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1240,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2MvJukYCMci14wnT",
+          "name": "OpenAI (alb potolo alt)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst resp = $json;\nlet content = resp.choices?.[0]?.message?.content || '{}';\nlet parsed;\ntry { parsed = JSON.parse(content); } catch (e) { throw new Error('OpenAI returned non-JSON: ' + content.slice(0, 200)); }\nif (!parsed.message) throw new Error('No message field in OpenAI response');\nconst picked = $('Pick New Circular').first().json;\nconst message = parsed.message.trim() + '\\n\\n👉 বিস্তারিত দেখুন ও আবেদন করুন: ' + picked.link;\nreturn [{ json: { message, link: picked.link } }];\n"
+      },
+      "id": "parse",
+      "name": "Parse Post",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "feed",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "message",
+                "value": "={{$json.message}}"
+              },
+              {
+                "name": "link",
+                "value": "={{$json.link}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "fb",
+      "name": "Post to Facebook",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\nconst staticData = $getWorkflowStaticData('global');\nif (!Array.isArray(staticData.postedJobLinks)) staticData.postedJobLinks = [];\nconst link = $('Pick New Circular').first().json.link;\nif (!staticData.postedJobLinks.includes(link)) staticData.postedJobLinks.push(link);\nif (staticData.postedJobLinks.length > 200) staticData.postedJobLinks = staticData.postedJobLinks.slice(-200);\nreturn [{ json: { done: true, postedLink: link, fbPostId: $json.id || $json.post_id || null } }];\n"
+      },
+      "id": "mark",
+      "name": "Mark Posted",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Job Schedule": {
+      "main": [
+        [
+          {
+            "node": "Fetch RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch RSS": {
+      "main": [
+        [
+          {
+            "node": "Pick New Circular",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick New Circular": {
+      "main": [
+        [
+          {
+            "node": "Fetch Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Article": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generate Post (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Post (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Parse Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Post": {
+      "main": [
+        [
+          {
+            "node": "Post to Facebook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to Facebook": {
+      "main": [
+        [
+          {
+            "node": "Mark Posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

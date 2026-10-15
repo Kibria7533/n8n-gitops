@@ -1,0 +1,190 @@
+{
+  "name": "Exam Results/Leaderboard",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 10,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "trigger-daily-results-1",
+      "name": "Daily 10:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, exam_name, examCode, duration\nFROM online_exam\nWHERE exam_mode = 'LIVE_QUIZ'\n  AND completed = 0\n  AND scheduled_start_time IS NOT NULL\n  AND scheduled_start_time + INTERVAL (duration + 15) MINUTE < NOW()",
+        "options": {}
+      },
+      "id": "mysql-find-ended-1",
+      "name": "Find Exams Needing Results",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "QxQz8ESa93bbcEkj",
+          "name": "Questionmake MySQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.questionhut.com/api/public/results/live-leaderboard/{{$json.examCode}}",
+        "options": {}
+      },
+      "id": "http-get-leaderboard-1",
+      "name": "Get Leaderboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item.json;\nconst examInfo = $('Find Exams Needing Results').item.json;\n\nconst users = Array.isArray(item.joined_users) ? item.joined_users : [];\n\nlet message;\nif (users.length === 0) {\n  message = `\\ud83d\\udcca ${examInfo.exam_name} has ended. No participants joined this time \\u2014 stay tuned for the next one!`;\n} else {\n  const top = users.slice(0, 5);\n  const medals = ['\\ud83e\\udd47', '\\ud83e\\udd48', '\\ud83e\\udd49'];\n  const board = top.map((u, i) => `${medals[i] || (i + 1) + '.'} ${u.name} \\u2014 ${u.correctAnswers} correct`).join('\\n');\n  message = `\\ud83c\\udfc6 Results are in for ${examInfo.exam_name}!\\n\\n${board}\\n\\nThanks to everyone who joined! \\ud83c\\udf89\\nNext quiz coming soon \\u2014 stay tuned.`;\n}\n\nreturn {\n  json: {\n    exam_id: examInfo.id,\n    exam_name: examInfo.exam_name,\n    examCode: examInfo.examCode,\n    message\n  }\n};"
+      },
+      "id": "code-build-leaderboard-msg-1",
+      "name": "Build Leaderboard Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "feed",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "message",
+                "value": "={{$json.message}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "fb-results-1",
+      "name": "Post Exam Results",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE online_exam SET completed = 1 WHERE id = {{$('Build Leaderboard Message').item.json.exam_id}}",
+        "options": {}
+      },
+      "id": "mysql-mark-completed-1",
+      "name": "Mark Exam Completed",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        1340,
+        300
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "QxQz8ESa93bbcEkj",
+          "name": "Questionmake MySQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 10:00": {
+      "main": [
+        [
+          {
+            "node": "Find Exams Needing Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Exams Needing Results": {
+      "main": [
+        [
+          {
+            "node": "Get Leaderboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Leaderboard": {
+      "main": [
+        [
+          {
+            "node": "Build Leaderboard Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Leaderboard Message": {
+      "main": [
+        [
+          {
+            "node": "Post Exam Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Exam Results": {
+      "main": [
+        [
+          {
+            "node": "Mark Exam Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

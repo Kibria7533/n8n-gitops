@@ -1,0 +1,195 @@
+{
+  "name": "Facebook Story - Teaser (3x Daily)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 9,
+              "triggerAtMinute": 30
+            },
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 14,
+              "triggerAtMinute": 30
+            },
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 21,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "trig",
+      "name": "3x Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const TEMPLATES = [{\"headline\": \"আজকের বিসিএস কুইজ\", \"sub\": \"প্রতি ঘণ্টায় নতুন প্রশ্ন - Questionhut পেজে দেখুন\"}, {\"headline\": \"আজকের সংবাদ কুইজ\", \"sub\": \"সাম্প্রতিক খবর নিয়ে কুইজ - Questionhut পেজে দেখুন\"}];\nconst staticData = $getWorkflowStaticData('global');\nif (typeof staticData.idx !== 'number') staticData.idx = 0;\nconst t = TEMPLATES[staticData.idx % TEMPLATES.length];\nstaticData.idx = (staticData.idx + 1) % TEMPLATES.length;\nreturn { json: t };"
+      },
+      "id": "pick",
+      "name": "Pick Teaser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "photos",
+        "sendBinaryData": true,
+        "binaryPropertyName": "data",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "published",
+                "value": "false"
+              }
+            ]
+          }
+        }
+      },
+      "id": "upload",
+      "name": "Upload Unpublished Photo",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "photo_stories",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "photo_id",
+                "value": "={{$json.id}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "story",
+      "name": "Publish Story",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:4000/assets/bcs-quiz-bg.png",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "fetchbg",
+      "name": "Fetch Fixed Background",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    }
+  ],
+  "connections": {
+    "3x Daily": {
+      "main": [
+        [
+          {
+            "node": "Pick Teaser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Teaser": {
+      "main": [
+        [
+          {
+            "node": "Fetch Fixed Background",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Unpublished Photo": {
+      "main": [
+        [
+          {
+            "node": "Publish Story",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Fixed Background": {
+      "main": [
+        [
+          {
+            "node": "Upload Unpublished Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

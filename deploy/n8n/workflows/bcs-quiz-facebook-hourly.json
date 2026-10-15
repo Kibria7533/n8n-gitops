@@ -1,0 +1,165 @@
+{
+  "name": "BCS Quiz - Facebook (Hourly)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "trig",
+      "name": "Hourly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const TOPICS = [\"বাংলাদেশ বিষয়াবলি (Bangladesh Affairs)\", \"আন্তর্জাতিক বিষয়াবলি (International Affairs)\", \"সাধারণ বিজ্ঞান (General Science)\", \"কম্পিউটার ও তথ্যপ্রযুক্তি (Computer & ICT)\", \"ভূগোল, পরিবেশ ও দুর্যোগ ব্যবস্থাপনা (Geography, Environment & Disaster Management)\", \"গাণিতিক যুক্তি (Mathematical Reasoning)\", \"নৈতিকতা, মূল্যবোধ ও সুশাসন (Ethics, Values & Good Governance)\", \"মানসিক দক্ষতা (Mental Ability)\"];\nconst staticData = $getWorkflowStaticData('global');\nif (typeof staticData.topicIndex !== 'number') staticData.topicIndex = 0;\nconst topic = TOPICS[staticData.topicIndex % TOPICS.length];\nstaticData.topicIndex = (staticData.topicIndex + 1) % TOPICS.length;\nreturn { json: { topic } };"
+      },
+      "id": "pick-topic",
+      "name": "Pick Topic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: \"তুমি একটি বাংলাদেশি বিসিএস (BCS) পরীক্ষার প্রস্তুতিমূলক ফেসবুক পেজের জন্য কুইজ তৈরি করো। প্রদত্ত বিষয়ের উপর ভিত্তি করে বিসিএস পরীক্ষার মানের ৩ থেকে ৫টি মাল্টিপল চয়েস প্রশ্ন তৈরি করো। প্রশ্নগুলো তথ্যভিত্তিক, সঠিক এবং প্রমিত/শুদ্ধ বাংলা ভাষায় স্পষ্টভাবে লেখা হতে হবে — কোনো অস্পষ্ট বা ভাঙা বাক্য গঠন ব্যবহার করবে না। লেখা শেষ করার আগে প্রতিটি প্রশ্ন আবার পড়ে নিশ্চিত করো যে বাক্যটি স্বাভাবিক ও ব্যাকরণগতভাবে সঠিক। অতি সাধারণ/বহুল প্রচলিত প্রশ্ন এড়িয়ে কিছুটা বৈচিত্র্যময় ও তথ্যসমৃদ্ধ প্রশ্ন দাও। প্রতিটি প্রশ্নের ৪টি অপশন (ক, খ, গ, ঘ) দাও এবং সঠিক উত্তর উল্লেখ করো। পোস্টের শুরুতে বিষয়সহ একটি আকর্ষণীয় ইমোজি-সহ শিরোনাম দাও, শেষে ৩-৫টি প্রাসঙ্গিক হ্যাশট্যাগ (#BCS #বিসিএস সহ) দাও। ফেসবুক পোস্টের জন্য উপযুক্ত ফরম্যাটে সরাসরি টেক্সট আউটপুট দাও, কোনো markdown ব্যবহার কোরো না।\" },\n    { role: 'user', content: 'আজকের বিষয়: ' + $json.topic }\n  ],\n  max_tokens: 1200,\n  temperature: 0.6\n}) }}",
+        "options": {}
+      },
+      "id": "openai-bcs",
+      "name": "Generate BCS Quiz (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2MvJukYCMci14wnT",
+          "name": "OpenAI (alb potolo alt)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { message: $json.choices[0].message.content } };"
+      },
+      "id": "format-bcs",
+      "name": "Format Post",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authType": "accessToken",
+        "hostUrl": "graph.facebook.com",
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "103016791357318",
+        "edge": "feed",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "message",
+                "value": "={{$json.message}}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "fb-bcs-post",
+      "name": "Post BCS Quiz to Facebook",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "BnMxRgGiJHvGJwFw",
+          "name": "Questionhut Facebook Page"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Hourly": {
+      "main": [
+        [
+          {
+            "node": "Pick Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Topic": {
+      "main": [
+        [
+          {
+            "node": "Generate BCS Quiz (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate BCS Quiz (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Format Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Post": {
+      "main": [
+        [
+          {
+            "node": "Post BCS Quiz to Facebook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}

@@ -28,3 +28,16 @@ configMapGenerator:
   - name: n8n-workflows
     files:
       - workflows/example-hello.json
+      - workflows/job-circular-posts-bdgovtjob-rss-2x-daily.json
+      - workflows/bcs-quiz-facebook-hourly.json
+      - workflows/exam-results-leaderboard.json
+      - workflows/weekly-exam-create-announce.json
+      - workflows/facebook-story-teaser-3x-daily.json
+      - workflows/questionmake-daily-facebook-scheduled-posts.json
+      - workflows/facebook-ai-cards-mcq-info-ppt-feed-story.json
+      - workflows/gk-news-web-search-facebook-twice-daily.json
+      - workflows/prothom-alo-news-quiz-facebook.json
+      - workflows/youtube-ai-cards-mcq-info-ppt-6x-daily.json
+      - workflows/doa-page-daily-duas-7x.json
+      - workflows/exam-reminder.json
+      - workflows/post-to-facebook-page-questionhut.json
