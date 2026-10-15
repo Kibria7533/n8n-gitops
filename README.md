@@ -1,5 +1,7 @@
 # n8n-gitops
 
+> Working on workflows? Read **[AGENTS.md](AGENTS.md)** first.
+
 n8n (+ ffmpeg sidecar + browser-automation-sidecar) deployed to k3s by ArgoCD.
 Push to `main` → Argo syncs `deploy/n8n` → a PostSync Job upserts every workflow in `deploy/n8n/workflows/` into n8n via its Public API.
 

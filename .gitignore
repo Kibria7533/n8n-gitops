@@ -1,3 +1,4 @@
 *secret*.yaml
 *.save*
 .env
+wf-export/
